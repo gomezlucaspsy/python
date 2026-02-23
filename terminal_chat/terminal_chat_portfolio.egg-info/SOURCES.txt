@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+chat_app/__init__.py
+chat_app/client.py
+chat_app/common.py
+chat_app/security.py
+chat_app/server.py
+terminal_chat_portfolio.egg-info/PKG-INFO
+terminal_chat_portfolio.egg-info/SOURCES.txt
+terminal_chat_portfolio.egg-info/dependency_links.txt
+terminal_chat_portfolio.egg-info/entry_points.txt
+terminal_chat_portfolio.egg-info/requires.txt
+terminal_chat_portfolio.egg-info/top_level.txt

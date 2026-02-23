@@ -1,0 +1,3 @@
+[console_scripts]
+securechat-client = chat_app.client:main
+securechat-server = chat_app.server:main

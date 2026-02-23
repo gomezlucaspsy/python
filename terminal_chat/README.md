@@ -1,0 +1,102 @@
+# Secure Terminal Chat (Portfolio Project)
+
+A professional, security-focused terminal chat application designed for portfolio use.
+
+Built with **Python + asyncio**, this project runs on:
+- Windows
+- macOS
+- Linux
+- FreeBSD and other BSD variants
+
+## Why this is portfolio-ready
+
+- **Cross-platform architecture**: pure Python, no OS-specific APIs
+- **Secure authentication**: PBKDF2 password hashing with per-user salt
+- **Optional transport security**: TLS support for encrypted traffic
+- **Structured protocol**: newline-delimited JSON envelopes
+- **Professional CLI UX**: polished terminal interface with command set
+- **Clean code organization**: reusable package with server/client entry points
+
+## Features
+
+- Multi-user real-time chat
+- Direct messages (`/dm`)
+- Online user listing (`/users`)
+- Authenticated sessions with duplicate-login prevention
+- Graceful connect/disconnect notifications
+- Optional TLS mode
+
+## Quick Start
+
+From the `terminal_chat` directory:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Create the first user:
+
+```bash
+python -m chat_app.server --users users.json --create-user admin
+```
+
+Start server:
+
+```bash
+python -m chat_app.server --host 0.0.0.0 --port 9000 --users users.json
+```
+
+Start client (new terminal):
+
+```bash
+python -m chat_app.client --host 127.0.0.1 --port 9000 --username admin
+```
+
+## TLS Mode (recommended outside localhost)
+
+Start server with cert and key:
+
+```bash
+python -m chat_app.server --host 0.0.0.0 --port 9000 --users users.json --tls-cert cert.pem --tls-key key.pem
+```
+
+Connect client with TLS:
+
+```bash
+python -m chat_app.client --host your-server --port 9000 --username admin --tls
+```
+
+For local self-signed testing only:
+
+```bash
+python -m chat_app.client --host 127.0.0.1 --port 9000 --username admin --tls --insecure-tls
+```
+
+## Client Commands
+
+- `/help` Show available commands
+- `/users` List connected users
+- `/dm <username> <message>` Send direct message
+- `/quit` Exit chat
+
+## Optional Install as Package
+
+```bash
+python -m pip install .
+```
+
+Then use:
+
+```bash
+securechat-server --users users.json
+securechat-client --host 127.0.0.1 --username admin
+```
+
+## Portfolio Notes
+
+This project demonstrates:
+- asynchronous network programming
+- secure credential handling
+- protocol design and validation
+- CLI product polish and documentation quality
+- deployable architecture suitable for technical interviews

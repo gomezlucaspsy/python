@@ -329,8 +329,22 @@ def _wrap_response(text: str, indent: int) -> str:
 # API CLIENT
 # ═══════════════════════════════════════════════════════════════
 
+def _read_user_env_win(name: str) -> str:
+    """Read a persistent Windows user env var from the registry (fallback for current session)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Environment", 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, name)
+            return str(val).strip()
+    except Exception:
+        return ""
+
+
 def get_api_key(provided: Optional[str] = None) -> str:
-    key = provided or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    key = (provided
+           or os.environ.get("ANTHROPIC_API_KEY", "").strip()
+           or _read_user_env_win("ANTHROPIC_API_KEY"))
     if not key:
         die("No API key. Set ANTHROPIC_API_KEY or use --api-key KEY.")
     return key
@@ -1076,6 +1090,7 @@ def build_parser() -> argparse.ArgumentParser:
 REPL_HELP = """\
   Commands you can type here:
     list                    — show all personas
+    <number>                — chat with persona by list number
     show <name>             — persona details
     chat <name>             — start chat session
     build <query>           — auto-build persona from web
@@ -1087,7 +1102,20 @@ REPL_HELP = """\
     history clear <name>    — wipe history
     help                    — this message
     exit / quit             — leave personaforge
+
+  Names with spaces don't need quotes:  chat Nikola Tesla
 """
+
+
+def _make_args(global_args, **kwargs):
+    """Build a simple namespace for command functions."""
+    import argparse
+    ns = argparse.Namespace()
+    ns.api_key = getattr(global_args, "api_key", None)
+    ns.model   = getattr(global_args, "model", DEFAULT_MODEL)
+    for k, v in kwargs.items():
+        setattr(ns, k, v)
+    return ns
 
 
 def _run_repl(global_args, parser) -> None:
@@ -1101,26 +1129,13 @@ def _run_repl(global_args, parser) -> None:
     )
     rule("─", C.BBLACK)
 
-    # Quick persona list on startup
     personas = load_personas()
     if personas:
         print(c(f"  {len(personas)} persona(s) loaded. Type 'list' to see them, 'chat <name>' to start.", C.BBLACK))
     else:
         print(c("  No personas yet. Try: build \"Alan Turing\"  or  create", C.BBLACK))
-
     print(c("  Type 'help' for commands, 'exit' to quit.", C.BBLACK))
     rule("─", C.BBLACK)
-
-    dispatch = {
-        "list":    cmd_list,
-        "show":    cmd_show,
-        "build":   cmd_build,
-        "create":  cmd_create,
-        "edit":    cmd_edit,
-        "rm":      cmd_rm,
-        "chat":    cmd_chat,
-        "history": cmd_history,
-    }
 
     while True:
         print()
@@ -1134,8 +1149,23 @@ def _run_repl(global_args, parser) -> None:
         if not line:
             continue
 
-        tokens = line.split(None, 2)
-        cmd = tokens[0].lower()
+        # Split only on the first word; rest is the raw argument (preserves spaces)
+        parts    = line.split(None, 1)
+        cmd      = parts[0].lower()
+        rest     = parts[1].strip() if len(parts) > 1 else ""
+
+        # ── Number shortcut: pick persona by list index ──────
+        if cmd.isdigit():
+            personas = load_personas()
+            idx = int(cmd) - 1
+            if 0 <= idx < len(personas):
+                try:
+                    cmd_chat(_make_args(global_args, name=personas[idx]["name"]))
+                except SystemExit:
+                    pass
+            else:
+                warn(f"no persona at index {cmd}  (run 'list' to see valid numbers)")
+            continue
 
         if cmd in ("exit", "quit", "q"):
             break
@@ -1144,37 +1174,67 @@ def _run_repl(global_args, parser) -> None:
             print(c(REPL_HELP, C.BBLACK))
             continue
 
-        if cmd not in dispatch:
-            warn(f"unknown command '{cmd}' — type 'help'")
-            continue
-
-        # Build a fake args namespace for the command
-        sub_argv = tokens[1:]  # remaining tokens
-
-        # Map repl tokens → argparse sub-command argv and re-parse
         try:
-            sub_args = parser.parse_args([cmd] + _split_quoted(line[len(cmd):].strip()))
-            # Carry over global flags
-            sub_args.api_key = getattr(global_args, "api_key", None)
-            sub_args.model   = getattr(global_args, "model", DEFAULT_MODEL)
-            dispatch[cmd](sub_args)
+            # ── list ─────────────────────────────────────────────
+            if cmd == "list":
+                cmd_list(_make_args(global_args))
+
+            # ── create ───────────────────────────────────────────
+            elif cmd == "create":
+                cmd_create(_make_args(global_args))
+
+            # ── commands that take a single name/query argument ──
+            elif cmd == "show":
+                if not rest:
+                    warn("usage: show <name>")
+                else:
+                    cmd_show(_make_args(global_args, name=rest))
+
+            elif cmd == "chat":
+                if not rest:
+                    warn("usage: chat <name>")
+                else:
+                    cmd_chat(_make_args(global_args, name=rest))
+
+            elif cmd == "build":
+                if not rest:
+                    warn("usage: build <query>")
+                else:
+                    cmd_build(_make_args(global_args, query=rest))
+
+            elif cmd == "edit":
+                if not rest:
+                    warn("usage: edit <name>")
+                else:
+                    cmd_edit(_make_args(global_args, name=rest))
+
+            elif cmd == "rm":
+                if not rest:
+                    warn("usage: rm <name>")
+                else:
+                    cmd_rm(_make_args(global_args, name=rest))
+
+            # ── history [show|clear] [name] ──────────────────────
+            elif cmd == "history":
+                hist_parts = rest.split(None, 1) if rest else []
+                sub  = hist_parts[0].lower() if hist_parts else None
+                name = hist_parts[1].strip() if len(hist_parts) > 1 else None
+                if sub and sub not in ("show", "clear"):
+                    warn("usage: history  |  history show <name>  |  history clear <name>")
+                else:
+                    cmd_history(_make_args(global_args, history_sub=sub, persona_name=name))
+
+            else:
+                warn(f"unknown command '{cmd}' — type 'help'")
+
         except SystemExit:
-            # argparse calls sys.exit on bad args; catch so we stay in repl
+            # die() raises SystemExit — catch it so the REPL stays alive
             pass
 
     print()
     rule("─", C.BBLACK)
     print(c("  Goodbye.", C.BBLACK))
     rule(color=C.BBLACK)
-
-
-def _split_quoted(s: str) -> List[str]:
-    """Split a string respecting double-quoted tokens, like a shell."""
-    import shlex
-    try:
-        return shlex.split(s)
-    except ValueError:
-        return s.split()
 
 
 # ═══════════════════════════════════════════════════════════════

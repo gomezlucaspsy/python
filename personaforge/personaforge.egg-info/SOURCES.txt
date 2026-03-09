@@ -1,0 +1,9 @@
+README.md
+pf.py
+pyproject.toml
+personaforge.egg-info/PKG-INFO
+personaforge.egg-info/SOURCES.txt
+personaforge.egg-info/dependency_links.txt
+personaforge.egg-info/entry_points.txt
+personaforge.egg-info/requires.txt
+personaforge.egg-info/top_level.txt
